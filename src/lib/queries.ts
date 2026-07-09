@@ -38,24 +38,42 @@ export async function getOrderDetail(orderId: number): Promise<OrderDetail | nul
   return { ...orders[0], items };
 }
 
-/** Přehled na home: poslední objednávky se stavem hotovo/celkem. */
-export async function getRecentOrders(limit = 12) {
-  return sql<
-    {
-      order_id: number;
-      external_id: string | null;
-      client_name: string | null;
-      print_code: string;
-      package_created_at: string | null;
-      total: number;
-      done: number;
-    }[]
-  >`
-    select o.order_id, o.external_id, o.client_name, o.print_code, o.package_created_at,
+export interface OrderFilters {
+  externalId?: string;
+  createdFrom?: string; // YYYY-MM-DD
+  createdTo?: string;
+  labelFrom?: string;
+  labelTo?: string;
+  limit?: number;
+}
+
+export interface OrderListItem {
+  order_id: number;
+  external_id: string | null;
+  client_name: string | null;
+  print_code: string;
+  order_created_at: string | null;
+  package_created_at: string | null;
+  total: number;
+  done: number;
+}
+
+/** Přehled objednávek s filtry (external_id, datum vytvoření, datum label vytištěn). */
+export async function getOrders(f: OrderFilters = {}): Promise<OrderListItem[]> {
+  const limit = f.limit ?? 200;
+  const ext = f.externalId?.trim();
+  return sql<OrderListItem[]>`
+    select o.order_id, o.external_id, o.client_name, o.print_code,
+           o.order_created_at, o.package_created_at,
            count(i.id)::int as total,
            count(i.id) filter (where i.engraved)::int as done
     from orders o
     left join engraving_items i on i.order_id = o.order_id
+    where (${ext ? sql`o.external_id ilike ${"%" + ext + "%"}` : sql`true`})
+      and (${f.createdFrom ? sql`(o.order_created_at at time zone 'Europe/Prague')::date >= ${f.createdFrom}` : sql`true`})
+      and (${f.createdTo ? sql`(o.order_created_at at time zone 'Europe/Prague')::date <= ${f.createdTo}` : sql`true`})
+      and (${f.labelFrom ? sql`(o.package_created_at at time zone 'Europe/Prague')::date >= ${f.labelFrom}` : sql`true`})
+      and (${f.labelTo ? sql`(o.package_created_at at time zone 'Europe/Prague')::date <= ${f.labelTo}` : sql`true`})
     group by o.order_id
     order by o.package_created_at desc nulls last
     limit ${limit}

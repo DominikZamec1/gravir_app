@@ -41,3 +41,14 @@ export function formatDateTime(iso: string | null): string {
     hour: "2-digit", minute: "2-digit", timeZone: "Europe/Prague",
   }).format(d);
 }
+
+/** Kompaktní datum+čas pro tabulku: "9. 7. 10:31" */
+export function formatShort(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("cs-CZ", {
+    day: "numeric", month: "numeric",
+    hour: "2-digit", minute: "2-digit", timeZone: "Europe/Prague",
+  }).format(d);
+}
