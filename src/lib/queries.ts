@@ -44,7 +44,8 @@ export interface OrderFilters {
   createdTo?: string;
   labelFrom?: string;
   labelTo?: string;
-  limit?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface OrderListItem {
@@ -58,14 +59,21 @@ export interface OrderListItem {
   done: number;
 }
 
-/** Přehled objednávek s filtry (external_id, datum vytvoření, datum label vytištěn). */
-export async function getOrders(f: OrderFilters = {}): Promise<OrderListItem[]> {
+/** Přehled objednávek s filtry + stránkováním. Vrací řádky pro stránku a celkový počet. */
+export async function getOrders(
+  f: OrderFilters = {},
+): Promise<{ rows: OrderListItem[]; total: number }> {
   const ext = f.externalId?.trim();
-  return sql<OrderListItem[]>`
+  const pageSize = f.pageSize ?? 100;
+  const page = Math.max(1, f.page ?? 1);
+  const offset = (page - 1) * pageSize;
+
+  const rows = await sql<(OrderListItem & { total_count: number })[]>`
     select o.order_id, o.external_id, o.client_name, o.print_code,
            o.order_created_at, o.package_created_at,
            count(i.id)::int as total,
-           count(i.id) filter (where i.engraved)::int as done
+           count(i.id) filter (where i.engraved)::int as done,
+           count(*) over()::int as total_count
     from orders o
     left join engraving_items i on i.order_id = o.order_id
     where (${ext ? sql`o.external_id ilike ${"%" + ext + "%"}` : sql`true`})
@@ -75,8 +83,10 @@ export async function getOrders(f: OrderFilters = {}): Promise<OrderListItem[]> 
       and (${f.labelTo ? sql`(o.package_created_at at time zone 'Europe/Prague')::date <= ${f.labelTo}` : sql`true`})
     group by o.order_id
     order by o.package_created_at desc nulls last
-    ${f.limit ? sql`limit ${f.limit}` : sql``}
+    limit ${pageSize} offset ${offset}
   `;
+  const total = rows.length ? rows[0].total_count : 0;
+  return { rows, total };
 }
 
 export interface CompletedEngraving {
@@ -93,8 +103,8 @@ export interface CompletedEngraving {
   print_code: string;
 }
 
-/** Gravíry označené v appce jako hotové, nejnovější první. */
-export async function getCompletedEngravings(): Promise<CompletedEngraving[]> {
+/** Gravíry označené v appce jako hotové, nejnovější první (posledních `limit`). */
+export async function getCompletedEngravings(limit = 500): Promise<CompletedEngraving[]> {
   return sql<CompletedEngraving[]>`
     select i.id, i.order_id, i.qty, i.ean, i.text, i.matched_cislo,
            i.engraved_at, i.engraved_by,
@@ -103,5 +113,6 @@ export async function getCompletedEngravings(): Promise<CompletedEngraving[]> {
     join orders o on o.order_id = i.order_id
     where i.engraved = true
     order by i.engraved_at desc nulls last
+    limit ${limit}
   `;
 }
