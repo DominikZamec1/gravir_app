@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* =====================================================================
+   Design systém – operátorská gravírovací konzole
+   Světlý, vysoce kontrastní, velké dotykové cíle (scanner + dotykový
+   monitor u stroje). Stavy: čeká = amber, hotovo = zelená, brand = indigo.
+   ===================================================================== */
+:root {
+  --bg: #0b1220;            /* tmavé pozadí stránky */
+  --bg-soft: #111a2e;
+  --surface: #f8fafc;       /* světlé karty */
+  --surface-2: #ffffff;
+  --ink: #0f172a;
+  --ink-soft: #475569;
+  --line: #e2e8f0;
+
+  --brand: #4f46e5;
+  --brand-ink: #ffffff;
+
+  --ok: #16a34a;
+  --ok-soft: #dcfce7;
+  --ok-ink: #14532d;
+
+  --wait: #d97706;
+  --wait-soft: #fef3c7;
+  --wait-ink: #78350f;
+
+  --danger: #dc2626;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-brand: var(--brand);
+  --color-ok: var(--ok);
+  --color-wait: var(--wait);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  height: 100%;
+}
+body {
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #1e293b 0%, var(--bg) 55%);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* utility na truncate více řádků */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

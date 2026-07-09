@@ -1,0 +1,4 @@
+# Python závislosti pro skripty (feed.py, import_batch.py, apply_migration.py)
+openpyxl
+psycopg[binary]
+pymysql
