@@ -60,7 +60,6 @@ export interface OrderListItem {
 
 /** Přehled objednávek s filtry (external_id, datum vytvoření, datum label vytištěn). */
 export async function getOrders(f: OrderFilters = {}): Promise<OrderListItem[]> {
-  const limit = f.limit ?? 200;
   const ext = f.externalId?.trim();
   return sql<OrderListItem[]>`
     select o.order_id, o.external_id, o.client_name, o.print_code,
@@ -76,6 +75,33 @@ export async function getOrders(f: OrderFilters = {}): Promise<OrderListItem[]> 
       and (${f.labelTo ? sql`(o.package_created_at at time zone 'Europe/Prague')::date <= ${f.labelTo}` : sql`true`})
     group by o.order_id
     order by o.package_created_at desc nulls last
-    limit ${limit}
+    ${f.limit ? sql`limit ${f.limit}` : sql``}
+  `;
+}
+
+export interface CompletedEngraving {
+  id: number;
+  order_id: number;
+  qty: number;
+  ean: string | null;
+  text: string | null;
+  matched_cislo: number | null;
+  engraved_at: string | null;
+  engraved_by: string | null;
+  external_id: string | null;
+  client_name: string | null;
+  print_code: string;
+}
+
+/** Gravíry označené v appce jako hotové, nejnovější první. */
+export async function getCompletedEngravings(): Promise<CompletedEngraving[]> {
+  return sql<CompletedEngraving[]>`
+    select i.id, i.order_id, i.qty, i.ean, i.text, i.matched_cislo,
+           i.engraved_at, i.engraved_by,
+           o.external_id, o.client_name, o.print_code
+    from engraving_items i
+    join orders o on o.order_id = i.order_id
+    where i.engraved = true
+    order by i.engraved_at desc nulls last
   `;
 }
