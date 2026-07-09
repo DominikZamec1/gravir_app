@@ -1,10 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { OrderListItem } from "@/lib/queries";
+import type { OrderListItem, SortKey, SortDir } from "@/lib/queries";
 import { formatShort } from "@/lib/format";
 
-export default function OrdersTable({ orders }: { orders: OrderListItem[] }) {
+export default function OrdersTable({
+  orders, sort, dir, createdHref, labelHref,
+}: {
+  orders: OrderListItem[];
+  sort: SortKey;
+  dir: SortDir;
+  createdHref: string;
+  labelHref: string;
+}) {
   const router = useRouter();
 
   if (orders.length === 0) {
@@ -23,8 +32,12 @@ export default function OrdersTable({ orders }: { orders: OrderListItem[] }) {
             <th className="px-4 py-3 font-semibold">External ID</th>
             <th className="px-4 py-3 font-semibold">Klient</th>
             <th className="px-4 py-3 font-semibold">QR kód</th>
-            <th className="px-4 py-3 font-semibold">Vytvořeno</th>
-            <th className="px-4 py-3 font-semibold">Label vytištěn</th>
+            <SortHeader href={createdHref} active={sort === "created"} dir={dir}>
+              Vytvořeno
+            </SortHeader>
+            <SortHeader href={labelHref} active={sort === "label"} dir={dir}>
+              Label vytištěn
+            </SortHeader>
             <th className="px-4 py-3 text-center font-semibold">Gravír</th>
           </tr>
         </thead>
@@ -69,5 +82,27 @@ export default function OrdersTable({ orders }: { orders: OrderListItem[] }) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function SortHeader({
+  href, active, dir, children,
+}: {
+  href: string; active: boolean; dir: SortDir; children: React.ReactNode;
+}) {
+  return (
+    <th className="px-4 py-3 font-semibold">
+      <Link
+        href={href}
+        className={`inline-flex items-center gap-1 transition hover:text-slate-700 ${
+          active ? "text-slate-700" : ""
+        }`}
+      >
+        {children}
+        <span className={active ? "text-[var(--brand)]" : "text-slate-300"}>
+          {active ? (dir === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </Link>
+    </th>
   );
 }

@@ -38,12 +38,17 @@ export async function getOrderDetail(orderId: number): Promise<OrderDetail | nul
   return { ...orders[0], items };
 }
 
+export type SortKey = "label" | "created";
+export type SortDir = "asc" | "desc";
+
 export interface OrderFilters {
   externalId?: string;
   createdFrom?: string; // YYYY-MM-DD
   createdTo?: string;
   labelFrom?: string;
   labelTo?: string;
+  sort?: SortKey;
+  dir?: SortDir;
   page?: number;
   pageSize?: number;
 }
@@ -68,6 +73,10 @@ export async function getOrders(
   const page = Math.max(1, f.page ?? 1);
   const offset = (page - 1) * pageSize;
 
+  // whitelist řazení (bezpečné – žádná interpolace uživatelského vstupu)
+  const sortCol = f.sort === "created" ? sql`o.order_created_at` : sql`o.package_created_at`;
+  const sortDir = f.dir === "asc" ? sql`asc` : sql`desc`;
+
   const rows = await sql<(OrderListItem & { total_count: number })[]>`
     select o.order_id, o.external_id, o.client_name, o.print_code,
            o.order_created_at, o.package_created_at,
@@ -82,7 +91,7 @@ export async function getOrders(
       and (${f.labelFrom ? sql`(o.package_created_at at time zone 'Europe/Prague')::date >= ${f.labelFrom}` : sql`true`})
       and (${f.labelTo ? sql`(o.package_created_at at time zone 'Europe/Prague')::date <= ${f.labelTo}` : sql`true`})
     group by o.order_id
-    order by o.package_created_at desc nulls last
+    order by ${sortCol} ${sortDir} nulls last
     limit ${pageSize} offset ${offset}
   `;
   const total = rows.length ? rows[0].total_count : 0;

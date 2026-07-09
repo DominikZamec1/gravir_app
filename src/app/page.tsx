@@ -2,7 +2,7 @@ import Link from "next/link";
 import ScanForm from "@/components/ScanForm";
 import OrderFilters from "@/components/OrderFilters";
 import OrdersTable from "@/components/OrdersTable";
-import { getOrders } from "@/lib/queries";
+import { getOrders, type SortKey, type SortDir } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -11,16 +11,19 @@ const PAGE_SIZE = 100;
 type SP = {
   e?: string; qr?: string;
   ext?: string; cf?: string; ct?: string; lf?: string; lt?: string;
-  page?: string;
+  sort?: string; dir?: string; page?: string;
 };
 
 export default async function Home({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page) || 1);
+  const sort: SortKey = sp.sort === "created" ? "created" : "label";
+  const dir: SortDir = sp.dir === "asc" ? "asc" : "desc";
 
   const { rows, total } = await getOrders({
     externalId: sp.ext, createdFrom: sp.cf, createdTo: sp.ct,
     labelFrom: sp.lf, labelTo: sp.lt,
+    sort, dir,
     page, pageSize: PAGE_SIZE,
   });
 
@@ -28,18 +31,27 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(total, page * PAGE_SIZE);
 
-  // querystring pro stránkovací odkazy (zachová filtry)
-  const qs = (p: number) => {
+  // querystring: zachová filtry + řazení; s možností přepsat page/sort/dir
+  const qs = (o: { page?: number; sort?: SortKey; dir?: SortDir } = {}) => {
+    const p = o.page ?? page;
+    const s = o.sort ?? sort;
+    const d = o.dir ?? dir;
     const params = new URLSearchParams();
     if (sp.ext) params.set("ext", sp.ext);
     if (sp.cf) params.set("cf", sp.cf);
     if (sp.ct) params.set("ct", sp.ct);
     if (sp.lf) params.set("lf", sp.lf);
     if (sp.lt) params.set("lt", sp.lt);
+    if (s !== "label") params.set("sort", s);
+    if (d !== "desc") params.set("dir", d);
     if (p > 1) params.set("page", String(p));
-    const s = params.toString();
-    return s ? `/?${s}` : "/";
+    const str = params.toString();
+    return str ? `/?${str}` : "/";
   };
+
+  // odkaz na řazení daného sloupce: pokud už aktivní, otoč směr; jinak sestupně. Reset na str. 1.
+  const sortHref = (key: SortKey) =>
+    qs({ sort: key, dir: sort === key && dir === "desc" ? "asc" : "desc", page: 1 });
 
   return (
     <div className="flex flex-col gap-8">
@@ -72,17 +84,23 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
           </span>
         </div>
         <OrderFilters values={{ ext: sp.ext, cf: sp.cf, ct: sp.ct, lf: sp.lf, lt: sp.lt }} />
-        <OrdersTable orders={rows} />
+        <OrdersTable
+          orders={rows}
+          sort={sort}
+          dir={dir}
+          createdHref={sortHref("created")}
+          labelHref={sortHref("label")}
+        />
 
         {pages > 1 && (
           <div className="mt-1 flex items-center justify-between px-1">
-            <PagerLink href={qs(page - 1)} disabled={page <= 1}>
+            <PagerLink href={qs({ page: page - 1 })} disabled={page <= 1}>
               ← Předchozí
             </PagerLink>
             <span className="text-sm text-slate-400">
               Stránka {page} z {pages}
             </span>
-            <PagerLink href={qs(page + 1)} disabled={page >= pages}>
+            <PagerLink href={qs({ page: page + 1 })} disabled={page >= pages}>
               Další →
             </PagerLink>
           </div>
