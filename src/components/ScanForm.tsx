@@ -20,11 +20,19 @@ function SubmitButton() {
 export default function ScanForm() {
   const ref = useRef<HTMLInputElement>(null);
 
-  // Čtečka se chová jako klávesnice → input musí být stále ve focusu.
+  // Čtečka se chová jako klávesnice → skenovací pole držíme ve focusu.
+  // ALE nekrademe focus, když uživatel klikne do jiného pole/tlačítka/odkazu
+  // (jinak by nešlo psát do filtru).
   useEffect(() => {
     const el = ref.current;
     el?.focus();
-    const refocus = () => setTimeout(() => el?.focus(), 50);
+    const refocus = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, button, a, label, [contenteditable="true"]')) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && active !== el && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) return;
+      setTimeout(() => el?.focus(), 50);
+    };
     window.addEventListener("click", refocus);
     return () => window.removeEventListener("click", refocus);
   }, []);
