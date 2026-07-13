@@ -5,7 +5,7 @@ export interface OrderRow {
   external_id: string | null;
   tag: string | null;
   status: string | null;
-  print_code: string;
+  print_code: string | null;
   client_name: string | null;
   order_created_at: string | null;
   package_created_at: string | null;

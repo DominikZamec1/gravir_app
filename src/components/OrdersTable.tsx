@@ -56,7 +56,7 @@ export default function OrdersTable({
                 <td className="max-w-[200px] truncate px-4 py-3 text-slate-600">
                   {o.client_name ?? "—"}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{o.print_code}</td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{o.print_code ?? "—"}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-slate-500">
                   {formatShort(o.order_created_at)}
                 </td>

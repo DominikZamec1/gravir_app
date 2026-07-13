@@ -58,17 +58,18 @@ def fetch_orders_by_days(days: int):
 
 
 def fetch_orders_by_ids(order_ids):
+    # Backlog: bereme VŠECHNY objednávky z DXF setu (i ty bez QR / status received).
+    # package je LEFT JOIN – print_code může být null (nenaskenovatelné, ale zobrazené).
     ph = ",".join(["%s"] * len(order_ids))
     sql = f"""
       SELECT o.id AS order_id, {SELECT_COLS}
       FROM `order` o
       JOIN shop s ON s.id = o.shop_id
       JOIN company c ON c.id = s.company_id
-      JOIN package p ON p.order_id = o.id
       JOIN packaging_instruction t ON t.order_id = o.id
+      LEFT JOIN package p ON p.order_id = o.id
       LEFT JOIN order_tag ot ON ot.order_id = o.id AND ot.name IN (%s, %s)
       WHERE o.shop_id = 42 AND o.id IN ({ph})
-        AND p.print_code IS NOT NULL AND p.print_code <> ''
       GROUP BY o.id, o.order_status_id, o.external_id, o.created_at, c.name
     """
     conn = prod_db()
@@ -145,7 +146,8 @@ def main():
         conn.close()
         print(f"Backlog režim: {len(ids)} order_id z pairings")
         rows = fetch_orders_by_ids(ids)
-        print(f"  z toho v produkci s QR: {len(rows)}")
+        with_qr = sum(1 for r in rows if r["print_code"])
+        print(f"  v produkci: {len(rows)} (z toho s QR: {with_qr})")
         sync(rows, reset=True)
     else:
         days = int(sys.argv[sys.argv.index("--days") + 1]) if "--days" in sys.argv else 1

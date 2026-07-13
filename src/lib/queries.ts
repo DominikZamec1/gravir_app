@@ -57,7 +57,7 @@ export interface OrderListItem {
   order_id: number;
   external_id: string | null;
   client_name: string | null;
-  print_code: string;
+  print_code: string | null;
   order_created_at: string | null;
   package_created_at: string | null;
   total: number;
@@ -109,7 +109,7 @@ export interface CompletedEngraving {
   engraved_by: string | null;
   external_id: string | null;
   client_name: string | null;
-  print_code: string;
+  print_code: string | null;
 }
 
 /** Gravíry označené v appce jako hotové, nejnovější první (posledních `limit`). */

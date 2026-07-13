@@ -56,7 +56,7 @@ export default async function OrderPage({
         </div>
 
         <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-          <Meta label="QR kód" value={order.print_code} mono />
+          <Meta label="QR kód" value={order.print_code ?? "— bez QR —"} mono />
           <Meta label="Stav" value={statusLabel(order.status)} />
           <Meta label="Služba" value={order.tag ?? "—"} />
           <Meta label="Balík vytvořen" value={formatDateTime(order.package_created_at)} />

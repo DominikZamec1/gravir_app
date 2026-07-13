@@ -38,7 +38,7 @@ se sloupci `order_id, external_id, ean, ikona_jmeno, DXF`.
 cd scripts
 python apply_migration.py                 # tabulky + Storage bucket
 python import_wd.py "../WD gravir.zip"    # nahraje 6153 DXF (waterdrop/<cislo>.dxf) + pairings s order_id
-python feed.py --backlog                  # nasyncuje přesně backlogové objednávky s QR (reset + 100% párování přes order_id)
+python feed.py --backlog                  # nasyncuje VŠECHNY backlogové objednávky (i bez QR / status received), reset + párování přes order_id
 ```
 
 Párování objednávka → DXF: **order_id + ean + text** (jednoznačné), fallback
