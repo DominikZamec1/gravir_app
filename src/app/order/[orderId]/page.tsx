@@ -61,6 +61,17 @@ export default async function OrderPage({
           <Meta label="Služba" value={order.tag ?? "—"} />
           <Meta label="Balík vytvořen" value={formatDateTime(order.package_created_at)} />
         </dl>
+
+        {order.message && (
+          <div className="mt-6">
+            <p className="mb-1.5 text-xs font-medium text-slate-400">
+              Packaging instrukce (nestrojově, pro kontrolu)
+            </p>
+            <pre className="max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-slate-50 p-3.5 font-mono text-xs leading-relaxed text-slate-600 ring-1 ring-slate-100">
+              {order.message}
+            </pre>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-col gap-3">
