@@ -111,17 +111,31 @@ def ensure_bucket(public=True):
             raise
 
 
-def upload_file(storage_path: str, data: bytes, content_type="application/dxf", upsert=True):
+def upload_file(storage_path: str, data: bytes, content_type="application/dxf", upsert=True,
+                retries=5):
+    import time
+
     e = env()
     # cesta může obsahovat mezery / diakritiku -> percent-enkódovat (segmenty, / zachovat)
     quoted = urllib.parse.quote(storage_path, safe="/")
     url = f"{e['SUPABASE_URL']}/storage/v1/object/{BUCKET}/{quoted}"
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers=_storage_headers(
-            {"Content-Type": content_type, "x-upsert": "true" if upsert else "false"}
-        ),
-        method="POST",
-    )
-    urllib.request.urlopen(req, timeout=60)
+    last = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers=_storage_headers(
+                    {"Content-Type": content_type, "x-upsert": "true" if upsert else "false"}
+                ),
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=120)
+            return
+        except (urllib.error.URLError, TimeoutError, OSError) as ex:
+            # HTTP 4xx (kromě 429) nemá smysl opakovat
+            if isinstance(ex, urllib.error.HTTPError) and ex.code < 500 and ex.code != 429:
+                raise
+            last = ex
+            time.sleep(min(2 ** attempt, 15))
+    raise RuntimeError(f"upload selhal po {retries} pokusech: {storage_path} ({last!r})")

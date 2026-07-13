@@ -28,13 +28,28 @@ Vláďa: zip s DXF ─────import_batch.py──▶ Supabase Storage (buc
 `.env` používá: `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
 `SUPABASE_SCHEMA=gravir_app`.
 
-## Setup (jednou, lokálně)
+## Setup (jednorázový backlog – aktuální režim)
+
+Kolega dodá jeden zip (`WD gravir.zip`): složka `DXF/` s názvy
+`<cislo>_<external_id>_<ean>_<text>.dxf` + `waterdrop_gravir_OK.xlsx`
+se sloupci `order_id, external_id, ean, ikona_jmeno, DXF`.
 
 ```bash
 cd scripts
-python apply_migration.py                        # vytvoří Storage bucket + ověří tabulky
-python import_batch.py "../PT_17561_D2C data 9_gravir.zip"   # nahraje DXF + pairings
-python feed.py --days 14                          # nasyncuje objednávky z produkce
+python apply_migration.py                 # tabulky + Storage bucket
+python import_wd.py "../WD gravir.zip"    # nahraje 6153 DXF (waterdrop/<cislo>.dxf) + pairings s order_id
+python feed.py --backlog                  # nasyncuje přesně backlogové objednávky s QR (reset + 100% párování přes order_id)
+```
+
+Párování objednávka → DXF: **order_id + ean + text** (jednoznačné), fallback
+`ean+text` → `ean`. Staré názvy `PT_..._gravir_<cislo>.dxf` bez order_id umí
+`import_batch.py` (starší formát).
+
+## Setup (průběžný sync – pro pozdější cron)
+
+```bash
+python feed.py            # balíky od půlnoci včerejška (jako starý Make)
+python feed.py --days 14  # delší okno
 ```
 
 ## Vývoj

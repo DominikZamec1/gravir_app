@@ -42,6 +42,11 @@ __pycache__/
 # claude code lokální nastavení
 .claude/settings.local.json
 
+# vstupní data od Vládi (velká / obsahují zákaznická jména – nekomitujeme)
+*.zip
+*.dxf
+*.xlsx
+
 # vercel
 .vercel
 
