@@ -41,6 +41,9 @@ export default function ItemCard({ item, dxfHref }: { item: ItemRow; dxfHref: st
           <p className="mt-2 text-2xl font-bold leading-tight text-slate-900">
             {renderEmoji(item.text) || <span className="text-slate-400">— bez textu —</span>}
           </p>
+          {item.text && (
+            <p className="mt-1 font-mono text-sm text-slate-400">({item.text})</p>
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col items-end gap-2">
