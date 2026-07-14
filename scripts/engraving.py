@@ -45,29 +45,53 @@ def parse_instruction(raw: str) -> list[dict]:
     if not raw:
         return []
 
-    m = _ENGRAVING_MARKER_RE.search(raw)
+    m = re.search(r"engraving\s*:", raw, re.IGNORECASE)
     if not m:
         return []
-    body = m.group(1).strip()
-    out: list[dict] = []
-    for chunk in body.split("||"):
-        chunk = chunk.strip()
-        if not chunk:
-            continue
-        m = _LINE_RE.match(chunk)
-        if not m:
-            out.append({"raw": chunk, "parsed": False})
-            continue
-        text = m.group("text").strip()
-        out.append(
-            {
-                "qty": int(m.group("qty")),
-                "ean": m.group("ean"),
+    warn = raw[: m.start()].strip()  # vícejazyčné upozornění před instrukcí
+
+    # Message může obsahovat blok "upozornění + Engraving:" víckrát (duplikát,
+    # NEoddělený ||). Rozdělíme na jednotlivé Engraving: segmenty a z každého
+    # odstraníme zopakované upozornění.
+    segments = []
+    for part in re.split(r"engraving\s*:", raw, flags=re.IGNORECASE)[1:]:
+        if warn:
+            part = part.replace(warn, " ")
+        part = part.strip()
+        if part:
+            segments.append(part)
+
+    def parse_lines(seg):
+        lines = []
+        for chunk in seg.split("||"):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            lm = _LINE_RE.match(chunk)
+            if not lm:
+                lines.append({"raw": chunk, "parsed": False})
+                continue
+            text = lm.group("text").strip()
+            lines.append({
+                "qty": int(lm.group("qty")),
+                "ean": lm.group("ean"),
                 "text": text,
                 "text_key": normalize_text(text),
                 "parsed": True,
-            }
-        )
+            })
+        return lines
+
+    # Sloučit identické segmenty (zduplikovaný blok) – ponech unikátní v pořadí.
+    # Legitimní duplicity (2 stejné lahve) jsou v jednom segmentu přes || a zůstanou.
+    out: list[dict] = []
+    seen = set()
+    for seg in segments:
+        lines = parse_lines(seg)
+        sig = tuple((l.get("ean"), l.get("text"), l.get("raw")) for l in lines)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.extend(lines)
     return out
 
 
