@@ -106,15 +106,18 @@ ITEM_SQL = """
 def sync(rows, reset):
     conn = db()
     with conn.cursor() as cur:
+        order_ids = [r["order_id"] for r in rows]
+
+        # zachovat stav "vygravírováno" (i přes reset) – captnout PŘED mazáním
+        cur.execute("select order_id, line_index, engraved, engraved_at, engraved_by "
+                    "from engraving_items")
+        prev = {(row[0], row[1]): row for row in cur.fetchall()}
+        n_engraved = sum(1 for v in prev.values() if v[2])
+
         if reset:
             cur.execute("delete from orders")  # cascade smaže i engraving_items
             conn.commit()
-            print("  reset: staré objednávky smazány")
-
-        order_ids = [r["order_id"] for r in rows]
-        cur.execute("select order_id, line_index, engraved, engraved_at, engraved_by "
-                    "from engraving_items where order_id = any(%s)", (order_ids,))
-        prev = {(row[0], row[1]): row for row in cur.fetchall()}
+            print(f"  reset: staré objednávky smazány (zachovávám {n_engraved} označených gravírů)")
 
         cur.executemany(ORDER_SQL, [
             (r["order_id"], r["external_id"], r["tag"], r["status"], r["print_code"], r["klient"],
