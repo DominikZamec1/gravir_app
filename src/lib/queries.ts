@@ -112,8 +112,44 @@ export interface CompletedEngraving {
   print_code: string | null;
 }
 
-/** Gravíry označené v appce jako hotové, nejnovější první (posledních `limit`). */
-export async function getCompletedEngravings(limit = 500): Promise<CompletedEngraving[]> {
+export interface CompletedFilters {
+  dateFrom?: string; // YYYY-MM-DD (dle data dokončení, Europe/Prague)
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Gravíry označené jako hotové – s filtrem data, stránkováním a součty (kusy = sum qty). */
+export async function getCompletedEngravings(
+  f: CompletedFilters = {},
+): Promise<{ rows: CompletedEngraving[]; total: number; totalPieces: number }> {
+  const pageSize = f.pageSize ?? 100;
+  const page = Math.max(1, f.page ?? 1);
+  const offset = (page - 1) * pageSize;
+
+  const rows = await sql<(CompletedEngraving & { total_count: number; total_pieces: number })[]>`
+    select i.id, i.order_id, i.qty, i.ean, i.text, i.matched_cislo,
+           i.engraved_at, i.engraved_by,
+           o.external_id, o.client_name, o.print_code,
+           count(*) over()::int as total_count,
+           coalesce(sum(i.qty) over(), 0)::int as total_pieces
+    from engraving_items i
+    join orders o on o.order_id = i.order_id
+    where i.engraved = true
+      and (${f.dateFrom ? sql`(i.engraved_at at time zone 'Europe/Prague')::date >= ${f.dateFrom}` : sql`true`})
+      and (${f.dateTo ? sql`(i.engraved_at at time zone 'Europe/Prague')::date <= ${f.dateTo}` : sql`true`})
+    order by i.engraved_at desc nulls last
+    limit ${pageSize} offset ${offset}
+  `;
+  return {
+    rows,
+    total: rows.length ? rows[0].total_count : 0,
+    totalPieces: rows.length ? rows[0].total_pieces : 0,
+  };
+}
+
+/** Všechny hotové gravíry pro export (bez stránkování, respektuje filtr data). */
+export async function getCompletedForExport(f: CompletedFilters = {}): Promise<CompletedEngraving[]> {
   return sql<CompletedEngraving[]>`
     select i.id, i.order_id, i.qty, i.ean, i.text, i.matched_cislo,
            i.engraved_at, i.engraved_by,
@@ -121,7 +157,8 @@ export async function getCompletedEngravings(limit = 500): Promise<CompletedEngr
     from engraving_items i
     join orders o on o.order_id = i.order_id
     where i.engraved = true
+      and (${f.dateFrom ? sql`(i.engraved_at at time zone 'Europe/Prague')::date >= ${f.dateFrom}` : sql`true`})
+      and (${f.dateTo ? sql`(i.engraved_at at time zone 'Europe/Prague')::date <= ${f.dateTo}` : sql`true`})
     order by i.engraved_at desc nulls last
-    limit ${limit}
   `;
 }
