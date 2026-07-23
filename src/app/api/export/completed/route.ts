@@ -26,11 +26,11 @@ export async function GET(req: NextRequest) {
     dateTo: sp.get("dt") ?? undefined,
   });
 
-  const header = ["Dokončeno", "Text", "EAN", "DXF", "External ID", "Order ID", "Klient", "Kdo"];
+  const header = ["Dokončeno", "Text", "Kusů", "EAN", "DXF", "External ID", "Order ID", "Klient", "Kdo"];
   const lines = [header.map(cell).join(";")];
   for (const r of rows) {
     lines.push([
-      fmt(r.engraved_at), r.text, r.ean, r.matched_cislo ? `#${r.matched_cislo}` : "",
+      fmt(r.engraved_at), r.text, r.qty, r.ean, r.matched_cislo ? `#${r.matched_cislo}` : "",
       r.external_id, r.order_id, r.client_name, r.engraved_by,
     ].map(cell).join(";"));
   }
