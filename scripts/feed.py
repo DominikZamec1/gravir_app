@@ -103,41 +103,68 @@ ITEM_SQL = """
 """
 
 
-def sync(rows, reset):
+def _sync_once(rows, reset):
+    """Jeden pokus. VŠE (reset delete + upsert + insert) v JEDNÉ transakci –
+    když cokoli selže, transakce se vrátí zpět a stará data zůstanou (žádné
+    prázdné DB jako při ztrátě spojení)."""
     conn = db()
-    with conn.cursor() as cur:
-        order_ids = [r["order_id"] for r in rows]
+    try:
+        with conn.cursor() as cur:
+            order_ids = [r["order_id"] for r in rows]
 
-        # zachovat stav "vygravírováno" (i přes reset) – captnout PŘED mazáním
-        cur.execute("select order_id, line_index, engraved, engraved_at, engraved_by "
-                    "from engraving_items")
-        prev = {(row[0], row[1]): row for row in cur.fetchall()}
-        n_engraved = sum(1 for v in prev.values() if v[2])
+            # zachovat stav "vygravírováno" – captnout PŘED mazáním
+            cur.execute("select order_id, line_index, engraved, engraved_at, engraved_by "
+                        "from engraving_items")
+            prev = {(row[0], row[1]): row for row in cur.fetchall()}
+            n_engraved = sum(1 for v in prev.values() if v[2])
 
-        if reset:
-            cur.execute("delete from orders")  # cascade smaže i engraving_items
-            conn.commit()
-            print(f"  reset: staré objednávky smazány (zachovávám {n_engraved} označených gravírů)")
+            if reset:
+                cur.execute("delete from orders")  # cascade smaže i engraving_items
+                print(f"  reset (zachovávám {n_engraved} označených gravírů)")
 
-        cur.executemany(ORDER_SQL, [
-            (r["order_id"], r["external_id"], r["tag"], r["status"], r["print_code"], r["klient"],
-             ts(r["order_created_unix"]), ts(r["pkg_created_unix"]), r["message"]) for r in rows
-        ])
+            cur.executemany(ORDER_SQL, [
+                (r["order_id"], r["external_id"], r["tag"], r["status"], r["print_code"], r["klient"],
+                 ts(r["order_created_unix"]), ts(r["pkg_created_unix"]), r["message"]) for r in rows
+            ])
 
-        cur.execute("delete from engraving_items where order_id = any(%s)", (order_ids,))
-        items = []
-        for r in rows:
-            for idx, l in enumerate(l for l in parse_instruction(r["message"]) if l.get("parsed")):
-                p = prev.get((r["order_id"], idx))
-                items.append((r["order_id"], idx, l["qty"], l["ean"], l["text"], l["text_key"],
-                              p[2] if p else False, p[3] if p else None, p[4] if p else None))
-        cur.executemany(ITEM_SQL, items)
-    conn.commit()
-    print(f"  objednávek: {len(rows)}, položek: {len(items)}")
+            cur.execute("delete from engraving_items where order_id = any(%s)", (order_ids,))
+            items = []
+            for r in rows:
+                for idx, l in enumerate(l for l in parse_instruction(r["message"]) if l.get("parsed")):
+                    p = prev.get((r["order_id"], idx))
+                    items.append((r["order_id"], idx, l["qty"], l["ean"], l["text"], l["text_key"],
+                                  p[2] if p else False, p[3] if p else None, p[4] if p else None))
+            cur.executemany(ITEM_SQL, items)
+        conn.commit()  # atomický commit celého syncu
+        print(f"  objednávek: {len(rows)}, položek: {len(items)}")
+        print("Přepočítávám napárování…")
+        rematch(conn)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
-    print("Přepočítávám napárování…")
-    rematch(conn)
-    conn.close()
+
+def sync(rows, reset):
+    import time
+    import psycopg
+
+    # Guard: při resetu NIKDY nemazat, když z produkce nepřišla data
+    # (jinak by prázdná odpověď smazala celou DB).
+    if reset and not rows:
+        print("  VAROVÁNÍ: z produkce 0 objednávek – reset zrušen, data ponechána.")
+        return
+
+    for attempt in range(1, 4):
+        try:
+            _sync_once(rows, reset)
+            return
+        except (psycopg.OperationalError, psycopg.InterfaceError) as ex:
+            print(f"  pokus {attempt}/3 selhal (spojení): {repr(ex)[:120]}")
+            if attempt == 3:
+                raise
+            time.sleep(5)
 
 
 def main():
