@@ -112,15 +112,8 @@ def _sync_once(rows, reset):
         with conn.cursor() as cur:
             order_ids = [r["order_id"] for r in rows]
 
-            # zachovat stav "vygravírováno" – captnout PŘED mazáním
-            cur.execute("select order_id, line_index, engraved, engraved_at, engraved_by "
-                        "from engraving_items")
-            prev = {(row[0], row[1]): row for row in cur.fetchall()}
-            n_engraved = sum(1 for v in prev.values() if v[2])
-
             if reset:
-                cur.execute("delete from orders")  # cascade smaže i engraving_items
-                print(f"  reset (zachovávám {n_engraved} označených gravírů)")
+                cur.execute("delete from orders")  # cascade smaže engraving_items (NE engraving_log)
 
             cur.executemany(ORDER_SQL, [
                 (r["order_id"], r["external_id"], r["tag"], r["status"], r["print_code"], r["klient"],
@@ -131,12 +124,27 @@ def _sync_once(rows, reset):
             items = []
             for r in rows:
                 for idx, l in enumerate(l for l in parse_instruction(r["message"]) if l.get("parsed")):
-                    p = prev.get((r["order_id"], idx))
+                    # engraved se nastaví z durabilního logu (níže), ne odsud
                     items.append((r["order_id"], idx, l["qty"], l["ean"], l["text"], l["text_key"],
-                                  p[2] if p else False, p[3] if p else None, p[4] if p else None))
+                                  False, None, None))
             cur.executemany(ITEM_SQL, items)
+
+            # obnovit "vygravírováno" z durabilního append-only logu (nejnovější akce)
+            cur.execute("""
+                update engraving_items i set
+                  engraved = true, engraved_at = l.at, engraved_by = l.engraved_by
+                from (
+                  select distinct on (order_id, line_index)
+                         order_id, line_index, action, at, engraved_by
+                  from engraving_log
+                  order by order_id, line_index, at desc
+                ) l
+                where l.order_id = i.order_id and l.line_index = i.line_index
+                  and l.action = 'done'
+            """)
+            restored = cur.rowcount
         conn.commit()  # atomický commit celého syncu
-        print(f"  objednávek: {len(rows)}, položek: {len(items)}")
+        print(f"  objednávek: {len(rows)}, položek: {len(items)}, obnoveno z logu: {restored}")
         print("Přepočítávám napárování…")
         rematch(conn)
     finally:
